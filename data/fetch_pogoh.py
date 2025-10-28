@@ -211,20 +211,20 @@ class POGOHDataFetcher:
 
                 try:
                     for chunk in pd.read_csv(
-                        content, 
+                        content,
                         chunksize=self.chunk_size,
-                        on_bad_lines='skip',
-                        encoding='utf-8',
-                        encoding_errors='replace'
+                        on_bad_lines="skip",
+                        encoding="utf-8",
+                        encoding_errors="replace",
                     ):
                         yield chunk
                 except:
                     content.seek(0)
                     yield pd.read_csv(
                         content,
-                        on_bad_lines='skip',
-                        encoding='utf-8',
-                        encoding_errors='replace'
+                        on_bad_lines="skip",
+                        encoding="utf-8",
+                        encoding_errors="replace",
                     )
 
         except requests.exceptions.RequestException as e:
@@ -474,11 +474,11 @@ class POGOHDataFetcher:
                     is_first_batch = batch_num == 1
 
                     for chunk in pd.read_csv(
-                        temp_batch_file, 
+                        temp_batch_file,
                         chunksize=self.chunk_size,
-                        on_bad_lines='skip',
-                        encoding='utf-8',
-                        encoding_errors='replace'
+                        on_bad_lines="skip",
+                        encoding="utf-8",
+                        encoding_errors="replace",
                     ):
                         write_header = is_first_batch and total_stats["row_count"] == 0
                         self._append_to_csv(
@@ -509,3 +509,6 @@ class POGOHDataFetcher:
 
         total_stats["output_file"] = output_file_path
         return total_stats
+
+
+__all__ = ["POGOHDataFetcher"]
