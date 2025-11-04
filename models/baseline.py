@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from typing import Optional, Tuple, Dict, List
+from typing import Optional
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 
@@ -9,14 +9,14 @@ class ARIMAModel:
     
     def __init__(
         self, 
-        order: Tuple[int, int, int] = (1, 1, 1),
+        order: tuple[int, int, int] = (1, 1, 1),
     ):
         """
         Initialize model.
         
         Parameters
         ----------
-        order : Tuple[int, int, int] 
+        order : tuple[int, int, int] 
             (p, d, q) order of the ARIMA model
         """
         self.order = order
@@ -52,7 +52,7 @@ class ARIMAModel:
         }
         fit_kwargs.update(kwargs)
         
-        self.fitted_model = self.model.fit(**fit_kwargs)
+        self.fitted_model = self.model.fit(method_kwargs=fit_kwargs)
         return self
     
     def predict(self, steps: int = 1) -> np.ndarray:
@@ -104,13 +104,13 @@ class ARIMAModel:
 class ARIMAXModel:
     """ARIMAX with exogenous variables using ARIMA"""
     
-    def __init__(self, order: Tuple[int, int, int] = (1, 1, 1),):
+    def __init__(self, order: tuple[int, int, int] = (1, 1, 1),):
         """
         Initialize ARIMAX model.
         
         Parameters
         ----------
-        order : Tuple[int, int, int]
+        order : tuple[int, int, int]
             (p, d, q) order of the ARIMA model
         """
         self.order = order
@@ -153,7 +153,7 @@ class ARIMAXModel:
         }
         fit_kwargs.update(kwargs)
 
-        self.fitted_model = self.model.fit(**fit_kwargs)
+        self.fitted_model = self.model.fit(method_kwargs=fit_kwargs)
         return self
     
     def predict(self, steps: int = 1, exog: Optional[pd.DataFrame] = None) -> np.ndarray:
@@ -204,7 +204,7 @@ class ARIMAXModel:
     def get_bic(self) -> float:
         return self.fitted_model.bic if self.fitted_model else None
 
-def evaluate_forecast(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
+def evaluate_forecast(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
     """
     Calculate forecast evaluation metrics.
     
@@ -217,7 +217,7 @@ def evaluate_forecast(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float
         
     Returns
     -------
-    Dict[str, float]
+    dict[str, float]
         Dictionary with RMSE, MAE, MAPE, SMAPE
     """
     y_pred = np.maximum(y_pred, 0)

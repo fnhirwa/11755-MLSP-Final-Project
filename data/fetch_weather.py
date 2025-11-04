@@ -3,7 +3,7 @@ from pathlib import Path
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional
 import time
 
 
@@ -158,7 +158,7 @@ class WeatherDataFetcher:
 
     def _split_date_range(
         self, start_date: str, end_date: str, chunk_months: int = 12
-    ) -> List[tuple[str, str]]:
+    ) -> list[tuple[str, str]]:
         """
         Split a date range into smaller chunks for API requests.
 
@@ -175,7 +175,7 @@ class WeatherDataFetcher:
 
         Returns
         -------
-        List[tuple[str, str]]
+        list[tuple[str, str]]
             List of (start_date, end_date) tuples
         """
         start_dt = datetime.strptime(start_date, "%Y-%m-%d")
