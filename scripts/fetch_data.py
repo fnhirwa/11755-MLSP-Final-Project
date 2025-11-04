@@ -23,7 +23,7 @@ def fetch_pogoh_raw_data(start_date, end_date, chunk_size=50_000, output_file_pa
         batch_size=batch_size,
         delay=delay,
     )
-
+    
 
 def fetch_weather_data(
     start_date,

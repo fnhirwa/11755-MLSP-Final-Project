@@ -16,3 +16,7 @@ jupyterlab
 
 # data
 openpyxl
+
+# Modeling
+statsmodels
+holidays

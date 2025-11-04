@@ -157,7 +157,7 @@ class DataProcessor:
         # Detect date column from sample
         sample = pd.read_csv(file_path, nrows=5)
         date_cols_to_try = [
-            'start_time', 'Start Time', 'starttime', 
+            'start_time', 'Start Date', 'starttime', 
             'trip_start_time']
         
         date_col = None

@@ -52,7 +52,6 @@ class WeatherDataFetcher:
         self.longitude = longitude
         self.timezone = timezone
 
-        # Define weather variables to fetch
         # Daily aggregates
         self.daily_variables = [
             "temperature_2m_max",
