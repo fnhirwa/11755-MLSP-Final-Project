@@ -128,6 +128,9 @@ def eval_arimax(df_copy):
         "is_rainy",
         "is_weekend",
         "is_holiday",
+        "active_closures",
+        "new_closures",
+        "ending_closures",
     ]
     _exog = df_copy[["date"] + exog_cols].copy()
     _exog["date"] = pd.to_datetime(_exog["date"], errors="coerce")
@@ -152,6 +155,9 @@ def eval_arimax(df_copy):
         "wind_speed",
         "wind_gusts_10m_max",
         "temp_range",
+        "active_closures",
+        "new_closures",
+        "ending_closures",
     ]
 
     for train_indices, test_indices in cv_arimax.split(y_aligned):
@@ -209,6 +215,9 @@ def eval_sarimax(df_copy):
         "is_rainy",
         "is_weekend",
         "is_holiday",
+        "active_closures",
+        "new_closures",
+        "ending_closures",
     ]
     _exog = df_copy[["date"] + exog_cols].copy()
     _exog["date"] = pd.to_datetime(_exog["date"], errors="coerce")
@@ -232,6 +241,9 @@ def eval_sarimax(df_copy):
         "wind_speed",
         "wind_gusts_10m_max",
         "temp_range",
+        "active_closures",
+        "new_closures",
+        "ending_closures",
     ]
 
     for train_indices, test_indices in cv_sarimax.split(y_aligned):
@@ -289,6 +301,9 @@ def eval_linear_regressor(df_copy):
         "wind_speed",
         "is_holiday",
         "is_weekend",
+        "active_closures",
+        "new_closures",
+        "ending_closures",
     ]
     for col in FEATURES:
         if df[col].dtype == "object":
@@ -328,10 +343,30 @@ def eval_xgboost_regressor(df_copy):
         "wind_speed",
         "is_holiday",
         "is_weekend",
+        "active_closures",
+        "new_closures",
+        "ending_closures",
     ]
+
     for col in FEATURES:
         if df[col].dtype == "object":
             df[col] = pd.to_numeric(df[col], errors="coerce")
+    cont_cols =[
+        "temp_mean",
+        "precip",
+        "precipitation_hours",
+        "wind_speed",
+        "wind_gusts_10m_max",
+        "temp_range",
+        "active_closures",
+        "new_closures",
+        "ending_closures",
+    ]
+
+    # scale continuous features
+    scaler = StandardScaler()
+    df[cont_cols] = scaler.fit_transform(df[cont_cols])
+
     y = df[TARGET]
     X = df[FEATURES].copy()
     initial_train_size = 365
@@ -369,10 +404,28 @@ def eval_catboost_regressor(df_copy):
         "wind_speed",
         "is_holiday",
         "is_weekend",
+        "active_closures",
+        "new_closures",
+        "ending_closures",
     ]
     for col in FEATURES:
         if df[col].dtype == "object":
             df[col] = pd.to_numeric(df[col], errors="coerce")
+    cont_cols =[
+        "temp_mean",
+        "precip",
+        "precipitation_hours",
+        "wind_speed",
+        "wind_gusts_10m_max",
+        "temp_range",
+        "active_closures",
+        "new_closures",
+        "ending_closures",
+    ]
+
+    # scale continuous features
+    scaler = StandardScaler()
+    df[cont_cols] = scaler.fit_transform(df[cont_cols])
     y = df[TARGET]
     X = df[FEATURES].copy()
     initial_train_size = 365

@@ -1,9 +1,7 @@
-import os
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from datetime import datetime
-from typing import Optional, Dict, List
+from typing import Optional
 import logging
 import holidays
 
@@ -279,18 +277,25 @@ class DataProcessor:
             # Load closure data
             df = pd.read_csv(file_path, low_memory=False)
             
+            # Standardize date column names
+            rename_map = {
+                'from_date': 'start_dt',
+                'to_date': 'end_dt'
+            }
+            df.rename(columns=rename_map, inplace=True)
+            
             # Identify date columns
-            date_cols = ['effective_date', 'expiration_date', 'issue_date', 'application_date']
+            date_cols = ['start_dt', 'end_dt', 'issue_date', 'application_date']
             for col in date_cols:
                 if col in df.columns:
                     df[col] = pd.to_datetime(df[col], errors='coerce')
             
-            # Filter by effective_date if available
-            if 'effective_date' in df.columns:
+            # Filter by start_dt if available
+            if 'start_dt' in df.columns:
                 if start_date:
-                    df = df[df['effective_date'] >= start_date]
+                    df = df[df['start_dt'] >= start_date]
                 if end_date:
-                    df = df[df['effective_date'] <= end_date]
+                    df = df[df['start_dt'] <= end_date]
             
             self.logger.info(f"Loaded {len(df):,} closure records")
             
@@ -437,7 +442,7 @@ class DataProcessor:
                 ((df.get('precip', 0) > 20).astype(int))  # Heavy rain
             ).astype(int)
         
-        self.logger.info(f"  Added weather features")
+        self.logger.info("  Added weather features")
         
         return df
 
@@ -465,88 +470,51 @@ class DataProcessor:
         
         if closure_df is None or len(closure_df) == 0:
             self.logger.warning("No closure data available. Creating empty features.")
-            return pd.DataFrame({
-                'date': date_range,
-                'active_closures': 0,
-                'new_closures': 0,
-                'closure_duration_avg': 0.0,
-                'has_full_closure': 0,
-                'has_partial_closure': 0,
-            })
-        
-        # Ensure date columns exist
-        if 'effective_date' not in closure_df.columns:
-            self.logger.warning("No effective_date column found in closure data.")
-            return pd.DataFrame({'date': date_range})
-        
-        # Initialize result DataFrame
-        result = pd.DataFrame({'date': date_range})
-        
-        # Calculate features for each date
-        active_closures = []
-        new_closures = []
-        avg_durations = []
-        has_full = []
-        has_partial = []
-        
-        for date in date_range:
-            # Active closures: effective_date <= date <= expiration_date
-            if 'expiration_date' in closure_df.columns:
-                active_mask = (
-                    (closure_df['effective_date'] <= date) & 
-                    (closure_df['expiration_date'] >= date)
-                )
-            else:
-                # If no expiration, just check effective date
-                active_mask = (closure_df['effective_date'] == date)
+            empty_df = pd.DataFrame(index=date_range)
+            empty_df.index.name = 'date'
+            empty_df['active_closures'] = 0
+            empty_df['new_closures'] = 0
+            return empty_df.reset_index()
+
+        # Ensure date columns are in datetime format
+        date_cols = ['start_dt', 'end_dt']
+        for col in date_cols:
+            if col not in closure_df.columns:
+                self.logger.warning(f"No {col} column found in closure data.")
+                # Return an empty df with the right index if essential columns are missing
+                empty_df = pd.DataFrame(index=date_range)
+                empty_df.index.name = 'date'
+                return empty_df.reset_index()
             
-            active = closure_df[active_mask]
-            active_closures.append(len(active))
+            closure_df[col] = pd.to_datetime(closure_df[col], errors='coerce')
+
+        # Drop rows where dates couldn't be parsed
+        closure_df.dropna(subset=date_cols, inplace=True)
+        
+        # Create a DataFrame to hold daily closure counts
+        closure_features = pd.DataFrame(index=date_range)
+        closure_features.index.name = 'date'
+        closure_features['active_closures'] = 0
+        
+        # Count closures active on each day
+        for date_val in date_range:
+            active_mask = (closure_df['start_dt'] <= date_val) & (closure_df['end_dt'] >= date_val)
+            closure_features.loc[date_val, 'active_closures'] = active_mask.sum()
             
-            # New closures starting on this date
-            new_mask = (closure_df['effective_date'].dt.date == date.date())
-            new_closures.append(closure_df[new_mask].shape[0])
-            
-            # Average duration of active closures
-            if 'expiration_date' in closure_df.columns and len(active) > 0:
-                durations = (active['expiration_date'] - active['effective_date']).dt.days
-                avg_durations.append(durations.mean() if len(durations) > 0 else 0)
-            else:
-                avg_durations.append(0)
-            
-            # Check for full vs partial closures (if closure_type column exists)
-            if 'closure_type' in closure_df.columns:
-                closure_types = active['closure_type'].str.lower() if len(active) > 0 else pd.Series([])
-                has_full.append(int(closure_types.str.contains('full', na=False).any()))
-                has_partial.append(int(closure_types.str.contains('partial', na=False).any()))
-            elif 'permit_type' in closure_df.columns:
-                permit_types = active['permit_type'].str.lower() if len(active) > 0 else pd.Series([])
-                has_full.append(int(permit_types.str.contains('full', na=False).any()))
-                has_partial.append(int(permit_types.str.contains('partial', na=False).any()))
-            else:
-                has_full.append(0)
-                has_partial.append(0)
+        # Additional features
+        # Number of new closures starting on a given day
+        new_closures = closure_df.groupby(closure_df['start_dt'].dt.date).size()
+        new_closures.index = pd.to_datetime(new_closures.index)
+        closure_features['new_closures'] = new_closures.reindex(date_range, fill_value=0)
+
+        # Number of closures ending on a given day
+        ending_closures = closure_df.groupby(closure_df['end_dt'].dt.date).size()
+        ending_closures.index = pd.to_datetime(ending_closures.index)
+        closure_features['ending_closures'] = ending_closures.reindex(date_range, fill_value=0)
         
-        if self.closure_features.get('active_closures'):
-            result['active_closures'] = active_closures
+        self.logger.info(f"  Created closure features for {len(closure_features)} days")
         
-        if self.closure_features.get('new_closures'):
-            result['new_closures'] = new_closures
-        
-        if self.closure_features.get('closure_duration_avg'):
-            result['closure_duration_avg'] = avg_durations
-        
-        if self.closure_features.get('has_full_closure'):
-            result['has_full_closure'] = has_full
-        
-        if self.closure_features.get('has_partial_closure'):
-            result['has_partial_closure'] = has_partial
-        
-        self.logger.info(f"  Created closure features for {len(result)} days")
-        self.logger.info(f"  Total active closure-days: {sum(active_closures)}")
-        self.logger.info(f"  Days with closures: {sum(1 for x in active_closures if x > 0)}")
-        
-        return result
+        return closure_features.reset_index()
   
     def create_lag_features(
         self, 
@@ -583,7 +551,7 @@ class DataProcessor:
                 df['trip_count'].shift(1).rolling(window=window).std()
             )
         
-        self.logger.info(f" Added lag and rolling features")
+        self.logger.info(" Added lag and rolling features")
         
         return df
     
@@ -647,15 +615,11 @@ class DataProcessor:
         closure_features_df = None
         if include_closures:
             self.logger.info("\nStep 5: Loading closure data")
-            closure_df = self.load_closure_data(
-                start_date=start_date,
-                end_date=end_date
-            )
+            closure_df = self.load_closure_data(start_date=start_date, end_date=end_date)
             
-            if closure_df is not None:
-                self.logger.info("\nStep 5b: Creating closure features")
-                date_range = pd.date_range(start_date, end_date, freq='D')
-                closure_features_df = self.create_closure_features(closure_df, date_range)
+            self.logger.info("\nStep 5b: Creating closure features")
+            date_range = pd.date_range(start_date, end_date, freq='D')
+            closure_features_df = self.create_closure_features(closure_df, date_range)
         
         # 5. merge data
         self.logger.info("\n merge data sources")

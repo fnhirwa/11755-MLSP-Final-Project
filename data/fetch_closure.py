@@ -2,13 +2,12 @@ import os
 import requests
 import pandas as pd
 import io
-import time
-import tempfile
+import tqdm
 from pathlib import Path
-from datetime import datetime, timedelta
-from dateutil.relativedelta import relativedelta
-from typing import Optional, Iterator, Union
+from datetime import datetime
+from typing import Optional, Iterator
 import gc
+from anomaly.progress import start, stop, track
 
 try:
     import psutil
@@ -52,8 +51,8 @@ class ClosureDataFetcher:
         self.package_id = "street-closures"
         self.chunk_size = chunk_size
         self.date_fields = [
-            "effective_date",
-            "expiration_date", 
+            "start_dt",
+            "end_dt", 
             "issue_date",
             "application_date"
         ] 
@@ -146,11 +145,12 @@ class ClosureDataFetcher:
         if not url:
             raise Exception(f"No URL found for resource: {resource.get('name')}")
 
-        print(f"  Downloading: {resource.get('name')}")
-
         try:
             response = requests.get(url, timeout=300, stream=True)
             response.raise_for_status()
+
+            total_size = int(response.headers.get('content-length', 0))
+            block_size = 1024  # 1 KB
 
             # Determine file type
             is_excel = (
@@ -158,29 +158,49 @@ class ClosureDataFetcher:
                 or "excel" in response.headers.get("content-type", "").lower()
             )
 
+            buffer = io.BytesIO()
+            with tqdm.tqdm(
+                total=total_size,
+                unit='iB',
+                unit_scale=True,
+                desc=f"  Downloading {resource.get('name')}"
+            ) as progress_bar:
+                for data in response.iter_content(block_size):
+                    progress_bar.update(len(data))
+                    buffer.write(data)
+            
+            if total_size != 0 and progress_bar.n != total_size:
+                print("  Warning: Download size mismatch.")
+
+            buffer.seek(0)
+
             if is_excel:
-                # For Excel files
-                content = io.BytesIO(response.content)
                 try:
-                    for chunk in pd.read_excel(content, chunksize=self.chunk_size):
-                        yield chunk
-                except:
-                    content.seek(0)
-                    yield pd.read_excel(content)
+                    df = pd.read_excel(buffer)
+                    total_chunks = (len(df) + self.chunk_size - 1) // self.chunk_size
+                    for i in track(range(total_chunks), description="Reading Excel..."):
+                        yield df.iloc[i*self.chunk_size:(i+1)*self.chunk_size]
+                except Exception as e:
+                    print(f"  Warning: Failed to read excel: {e}.")
+                    yield pd.DataFrame()
 
             else:  # CSV
-                content = io.StringIO(response.text)
+                # We need to decode bytes to string for StringIO
+                csv_content = buffer.getvalue().decode('utf-8', errors='replace')
+                content = io.StringIO(csv_content)
                 try:
-                    for chunk in pd.read_csv(
+                    reader = pd.read_csv(
                         content,
                         chunksize=self.chunk_size,
                         on_bad_lines='skip',
                         encoding='utf-8',
                         encoding_errors='replace',
                         low_memory=False
-                    ):
+                    )
+                    for chunk in track(reader, description="Reading CSV..."):
                         yield chunk
-                except:
+                except Exception as e:
+                    print(f"  Warning: Failed to read csv in chunks: {e}. Reading whole file.")
                     content.seek(0)
                     df = pd.read_csv(
                         content,
@@ -190,7 +210,8 @@ class ClosureDataFetcher:
                         low_memory=False
                     )
                     
-                    for i in range(0, len(df), self.chunk_size):
+                    total_chunks = (len(df) + self.chunk_size - 1) // self.chunk_size
+                    for i in track(range(total_chunks), description="Processing DataFrame..."):
                         yield df.iloc[i:i + self.chunk_size].copy()
 
         except requests.exceptions.RequestException as e:
@@ -268,7 +289,7 @@ class ClosureDataFetcher:
         start_date: str,
         end_date: str,
         output_file_path: str,
-        date_field: str = "effective_date",
+        date_field: str = "start_dt",
         delay: float = 1.0,
         monitor_memory: bool = True,
     ) -> dict:
@@ -302,6 +323,11 @@ class ClosureDataFetcher:
         except ValueError as e:
             raise ValueError(f"Invalid date format. Use 'YYYY-MM-DD': {e}")
 
+        if date_field not in self.date_fields:
+            print(f"Warning: '{date_field}' not in expected date fields: {self.date_fields}")
+            print("Proceeding with 'start_dt' as the date field...")
+            date_field = "start_dt"
+
         if monitor_memory:
             initial_memory = self._get_memory_usage_mb()
             if initial_memory > 0:
@@ -327,10 +353,11 @@ class ClosureDataFetcher:
         chunk_count = 0
         is_first_chunk = True
 
+        start()
         try:
             print(f"\nProcessing closures from {start_date} to {end_date}...")
             
-            for chunk in self._stream_download_resource(latest_resource):
+            for chunk in track(self._stream_download_resource(latest_resource), description="Processing chunks..."):
                 # Filter chunk by date
                 filtered_chunk = self._filter_data_by_date(
                     chunk, start_dt, end_dt, date_field
@@ -357,6 +384,7 @@ class ClosureDataFetcher:
                 del chunk, filtered_chunk
                 gc.collect()
 
+            stop()
             print(f"\n Processing complete")
             print(f"  Total rows written: {total_rows:,}")
             print(f"  Chunks processed: {chunk_count}")

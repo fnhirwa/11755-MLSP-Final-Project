@@ -48,8 +48,8 @@ class ARIMAModel:
         
         # fitting parameters
         fit_kwargs = {
-            'method': 'lbfgs',
-            'maxiter': 200,
+            'method': 'powell',
+            'maxiter': 1000,
         }
         fit_kwargs.update(kwargs)
         
@@ -149,8 +149,8 @@ class ARIMAXModel:
         
         # fitting parameters
         fit_kwargs = {
-            'method': 'lbfgs',
-            'maxiter': 200,
+            'method': 'powell',
+            'maxiter': 1000,
         }
         fit_kwargs.update(kwargs)
 
@@ -260,8 +260,8 @@ class SARIMAXModel:
         
         # Fitting parameters
         fit_kwargs = {
-            'method': 'lbfgs',
-            'maxiter': 200,
+            'method': 'powell',
+            'maxiter': 1000,
         }
         fit_kwargs.update(kwargs)
 

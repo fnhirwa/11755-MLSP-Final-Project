@@ -16,6 +16,7 @@ jupyterlab
 
 # data
 openpyxl
+rich
 
 # Modeling
 statsmodels

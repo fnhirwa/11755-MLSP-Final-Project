@@ -146,7 +146,13 @@ def main():
         )
 
     elif args.d_name == "closure":
-        fetch_closure_data()
+        fetch_closure_data(
+            start_date=args.start_date,
+            end_date=args.end_date,
+            date_field=args.date_field,
+            output_file_path=args.output_file,
+            delay=args.delay,
+        )
 
     elif args.d_name == "weather":
         if not args.start_date or not args.end_date:

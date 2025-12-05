@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Generator, Tuple
+from typing import Generator
 
 class RollingCV:
     """
@@ -21,7 +21,7 @@ class RollingCV:
         self.test_size = test_size
         self.step = step
 
-    def split(self, X) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
+    def split(self, X) -> Generator[tuple[np.ndarray, np.ndarray], None, None]:
         """
         Generate indices to split data into training and test sets.
         
