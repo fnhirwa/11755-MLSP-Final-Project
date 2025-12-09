@@ -1,8 +1,9 @@
 import argparse
-
 import sys
-
 import os
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -510,6 +511,58 @@ def eval_regressor_models(df_copy):
         "LightGBMRegressor": lgbm_metrics,
     }
 
+def visualize_metrics(metrics, output_image="model_comparison.png"):
+    df_metrics = pd.DataFrame(metrics).T
+
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(15, 10))
+    fig.suptitle('Model Performance Comparison', fontsize=16)
+    axes = axes.flatten()
+
+    baseline_models = {"ARIMA", "ARIMAX", "SARIMAX"}
+
+    def get_color(model_name):
+        return "tab:red" if model_name in baseline_models else "skyblue"
+
+    metric_names = ["RMSE", "MAE", "MAPE", "SMAPE"]
+
+    for i, metric in enumerate(metric_names):
+        if metric not in df_metrics.columns:
+            continue
+        ax = axes[i]
+
+        sorted_data = df_metrics[metric].sort_values()
+        colors = [get_color(m) for m in sorted_data.index]
+
+        bars = ax.bar(sorted_data.index, sorted_data.values, color=colors, edgecolor="black")
+
+        ax.set_title(metric)
+        ax.set_ylabel("Value")
+        ax.tick_params(axis='x', rotation=45)
+        ax.grid(axis='y', linestyle='--', alpha=0.7)
+
+        for tick in ax.get_xticklabels():
+            if tick.get_text() in baseline_models:
+                tick.set_fontweight("bold")
+
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(
+                bar.get_x() + bar.get_width() / 2.0,
+                height * 1.01,
+                f"{height:.4f}",
+                ha="center",
+                va="bottom",
+                fontsize=9,
+            )
+    baseline_patch = mpatches.Patch(color='tab:red', label='Baseline Models')
+    other_patch = mpatches.Patch(color='skyblue', label='Other Models')
+    fig.legend(handles=[baseline_patch, other_patch], loc='upper right')
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.savefig(output_image)
+    print(f"Comparison plot saved to {output_image}")
+    plt.close()
+
 
 def run_evaluation(data_path, output_file):
     df = pd.read_csv(data_path)
@@ -534,6 +587,9 @@ def run_evaluation(data_path, output_file):
     with open(output_file, 'w') as f:
         json.dump(metrics, f, indent=4)
     print(f"Metrics saved to {output_file}")
+
+    image_file = output_file.replace('.json', '.png')
+    visualize_metrics(metrics, image_file)
 
     print("Evaluation Metrics:")
     for model_name, model_metrics in metrics.items():
